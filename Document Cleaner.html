@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Worksheet Scanner & Keystone Cleaner</title>
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --card-bg: #ffffff;
+      --accent: #0071e3;
+      --border: #d2d2d7;
+      --text: #1d1d1f;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    header h1 {
+      margin: 0 0 6px 0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    header p {
+      margin: 0;
+      color: #6e6e73;
+      font-size: 14px;
+    }
+    .dropzone {
+      width: 100%;
+      max-width: 900px;
+      border: 2px dashed var(--accent);
+      background: #f0f7ff;
+      border-radius: 12px;
+      padding: 26px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      box-sizing: border-box;
+    }
+    .dropzone.dragover {
+      background: #e1effe;
+      border-color: #0056b3;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin: 18px 0;
+      background: var(--card-bg);
+      padding: 14px 20px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      font-size: 13px;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 900px;
+      box-sizing: border-box;
+    }
+    .controls-left {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      align-items: center;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .control-group label {
+      font-weight: 500;
+    }
+    .actions-right {
+      display: flex;
+      gap: 10px;
+    }
+    .output-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      width: 100%;
+      max-width: 900px;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button:hover:not(:disabled) {
+      background: #005bb5;
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    button.secondary {
+      background: #e5e5ea;
+      color: #1d1d1f;
+    }
+    button.secondary:hover:not(:disabled) {
+      background: #d1d1d6;
+    }
+    button.toggle-active {
+      background: #34c759;
+      color: white;
+    }
+    button.danger {
+      background: transparent;
+      color: #ff3b30;
+      border: 1px solid #ff3b30;
+    }
+    button.danger:hover:not(:disabled) {
+      background: #ff3b3010;
+    }
+    .preview-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .preview-box {
+      text-align: center;
+    }
+    .preview-box span {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: #86868b;
+    }
+    canvas, img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      max-height: 520px;
+      object-fit: contain;
+      background: white;
+    }
+
+    /* Modal for Keystone & Crop */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 94vw;
+      max-height: 94vh;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+    .crop-canvas-wrapper {
+      position: relative;
+      overflow: hidden;
+      max-height: 72vh;
+      display: flex;
+      justify-content: center;
+      background: #18181b;
+      border-radius: 6px;
+    }
+    #cropCanvas {
+      max-height: 72vh;
+      object-fit: contain;
+      cursor: crosshair;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Worksheet Scanner & Keystone Cleaner</h1>
+    <p>Fixes keystoning angles, removes shadows, and enhances pencil markings for clean printing</p>
+  </header>
+
+  <div class="dropzone" id="dropzone">
+    <strong>Drop angled photo(s) here</strong> or click to browse
+    <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
+  </div>
+
+  <div class="toolbar">
+    <div class="controls-left">
+      <div class="control-group">
+        <label for="threshold">Whiteness:</label>
+        <input type="range" id="threshold" min="0.65" max="0.95" step="0.01" value="0.84">
+      </div>
+      <div class="control-group">
+        <label for="darkness">Pencil/Ink Darkness:</label>
+        <input type="range" id="darkness" min="0.5" max="2.0" step="0.05" value="1.25">
+      </div>
+      <div class="control-group">
+        <label><input type="checkbox" id="grayscale" checked> Grayscale</label>
+      </div>
+    </div>
+    <div class="actions-right">
+      <button id="downloadAllBtn" disabled>📦 Download All (.zip)</button>
+      <button id="clearAllBtn" class="danger" disabled>Clear All</button>
+    </div>
+  </div>
+
+  <div class="output-grid" id="outputGrid"></div>
+
+  <!-- Keystone Perspective Modal -->
+  <div id="cropModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <h3 style="margin: 0; font-size: 15px; font-weight: 600;">
+        Drag the 4 corner handles to the 4 corners of the paper
+      </h3>
+      <div class="crop-canvas-wrapper">
+        <canvas id="cropCanvas"></canvas>
+      </div>
+      <div style="display:flex; gap: 10px;">
+        <button id="applyCropBtn">✓ Straighten & Flatten</button>
+        <button id="resetCropBtn" class="secondary">Reset Corners</button>
+        <button id="rotateCropBtn" class="secondary">🔄 Rotate 90°</button>
+        <button id="cancelCropBtn" class="secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const outputGrid = document.getElementById('outputGrid');
+    const thresholdInput = document.getElementById('threshold');
+    const darknessInput = document.getElementById('darkness');
+    const grayscaleInput = document.getElementById('grayscale');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+
+    let loadedItems = [];
+
+    dropzone.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => handleFiles(Array.from(e.target.files));
+
+    dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
+    dropzone.ondragleave = () => dropzone.classList.remove('dragover');
+    dropzone.ondrop = (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      handleFiles(Array.from(e.dataTransfer.files));
+    };
+
+    [thresholdInput, darknessInput, grayscaleInput].forEach(ctrl => {
+      ctrl.oninput = () => reprocessAll();
+    });
+
+    clearAllBtn.onclick = () => {
+      loadedItems = [];
+      outputGrid.innerHTML = '';
+      updateToolbarButtons();
+    };
+
+    function updateToolbarButtons() {
+      const hasItems = loadedItems.length > 0;
+      downloadAllBtn.disabled = !hasItems;
+      clearAllBtn.disabled = !hasItems;
+    }
+
+    function handleFiles(files) {
+      const imageFiles = files.filter(f => f.type.startsWith('image/'));
+      if (imageFiles.length === 0) return;
+
+      imageFiles.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const isDark = detectDarkMode(img);
+            const c = document.createElement('canvas');
+            c.width = img.naturalWidth || img.width;
+            c.height = img.naturalHeight || img.height;
+            c.getContext('2d').drawImage(img, 0, 0);
+
+            const item = {
+              name: file.name,
+              sourceCanvas: c,
+              workingCanvas: c,
+              outCanvas: null,
+              inverted: isDark,
+              corners: null // Top-Left, Top-Right, Bottom-Right, Bottom-Left
+            };
+
+            loadedItems.push(item);
+            processImageItem(item);
+            updateToolbarButtons();
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function detectDarkMode(img) {
+      const temp = document.createElement('canvas');
+      temp.width = 64;
+      temp.height = 64;
+      const ctx = temp.getContext('2d');
+      ctx.drawImage(img, 0, 0, 64, 64);
+      const data = ctx.getImageData(0, 0, 64, 64).data;
+      let totalLum = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        totalLum += (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000;
+      }
+      return (totalLum / (data.length / 4)) < 90;
+    }
+
+    function reprocessAll() {
+      outputGrid.innerHTML = '';
+      loadedItems.forEach(item => processImageItem(item));
+    }
+
+    function processImageItem(item) {
+      const { name } = item;
+      
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      const header = document.createElement('div');
+      header.className = 'card-header';
+      header.innerHTML = `<span>${name} ${item.inverted ? '<small style="color:var(--accent); font-weight:600;">(Dark Mode Inverted)</small>' : ''}</span>`;
+
+      const btnRow = document.createElement('div');
+      btnRow.className = 'btn-row';
+
+      const invertBtn = document.createElement('button');
+      invertBtn.className = item.inverted ? 'toggle-active' : 'secondary';
+      invertBtn.innerText = item.inverted ? '☀️ Inverted' : '🌙 Invert';
+
+      const cropBtn = document.createElement('button');
+      cropBtn.className = 'secondary';
+      cropBtn.innerText = '✂️ Keystone / Crop';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.innerText = '📋 Copy';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'secondary';
+      saveBtn.innerText = '💾 Save';
+
+      btnRow.appendChild(invertBtn);
+      btnRow.appendChild(cropBtn);
+      btnRow.appendChild(copyBtn);
+      btnRow.appendChild(saveBtn);
+      header.appendChild(btnRow);
+      card.appendChild(header);
+
+      const previewContainer = document.createElement('div');
+      previewContainer.className = 'preview-container';
+
+      const origBox = document.createElement('div');
+      origBox.className = 'preview-box';
+      origBox.innerHTML = '<span>Perspective Flattened / Original</span>';
+      const origThumb = new Image();
+      origThumb.src = item.workingCanvas.toDataURL();
+      origBox.appendChild(origThumb);
+
+      const cleanBox = document.createElement('div');
+      cleanBox.className = 'preview-box';
+      cleanBox.innerHTML = '<span>Cleaned & Whitened</span>';
+
+      const outCanvas = document.createElement('canvas');
+      item.outCanvas = outCanvas;
+      cleanBox.appendChild(outCanvas);
+
+      previewContainer.appendChild(origBox);
+      previewContainer.appendChild(cleanBox);
+      card.appendChild(previewContainer);
+      outputGrid.appendChild(card);
+
+      enhanceDocument(item.workingCanvas, outCanvas, {
+        whiteRatio: parseFloat(thresholdInput.value),
+        darkness: parseFloat(darknessInput.value),
+        grayscale: grayscaleInput.checked,
+        invert: item.inverted
+      });
+
+      invertBtn.onclick = () => {
+        item.inverted = !item.inverted;
+        reprocessAll();
+      };
+
+      cropBtn.onclick = () => openKeystoneModal(item);
+
+      copyBtn.onclick = () => {
+        outCanvas.toBlob(blob => {
+          navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]).then(() => {
+            const originalText = copyBtn.innerText;
+            copyBtn.innerText = '✓ Copied!';
+            setTimeout(() => copyBtn.innerText = originalText, 1800);
+          }).catch(() => {
+            alert('Clipboard write failed. Use the Save button.');
+          });
+        });
+      };
+
+      saveBtn.onclick = () => {
+        const cleanName = `cleaned_${name.replace(/\.[^/.]+$/, "")}.png`;
+        const a = document.createElement('a');
+        a.download = cleanName;
+        a.href = outCanvas.toDataURL('image/png');
+        a.click();
+      };
+    }
+
+    // CamScanner-style background division and illumination leveling
+    function enhanceDocument(sourceCanvas, targetCanvas, opts) {
+      const w = sourceCanvas.width;
+      const h = sourceCanvas.height;
+      targetCanvas.width = w;
+      targetCanvas.height = h;
+
+      const ctx = targetCanvas.getContext('2d');
+      ctx.drawImage(sourceCanvas, 0, 0);
+
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+
+      if (opts.invert) {
+        for (let i = 0; i < data.length; i += 4) {
+          data[i] = 255 - data[i];
+          data[i + 1] = 255 - data[i + 1];
+          data[i + 2] = 255 - data[i + 2];
+        }
+      }
+
+      const lowScale = 0.05;
+      const lowW = Math.max(16, Math.round(w * lowScale));
+      const lowH = Math.max(16, Math.round(h * lowScale));
+
+      const lowCanvas = document.createElement('canvas');
+      lowCanvas.width = lowW;
+      lowCanvas.height = lowH;
+      const lowCtx = lowCanvas.getContext('2d');
+      
+      ctx.putImageData(imgData, 0, 0);
+      lowCtx.drawImage(targetCanvas, 0, 0, lowW, lowH);
+
+      const lowData = lowCtx.getImageData(0, 0, lowW, lowH);
+      const lowPx = lowData.data;
+
+      const dilated = new Uint8Array(lowW * lowH);
+      const radius = 2;
+      for (let y = 0; y < lowH; y++) {
+        for (let x = 0; x < lowW; x++) {
+          let maxVal = 0;
+          for (let dy = -radius; dy <= radius; dy++) {
+            const ny = y + dy;
+            if (ny < 0 || ny >= lowH) continue;
+            for (let dx = -radius; dx <= radius; dx++) {
+              const nx = x + dx;
+              if (nx < 0 || nx >= lowW) continue;
+              const idx = (ny * lowW + nx) * 4;
+              const lum = (lowPx[idx] * 299 + lowPx[idx + 1] * 587 + lowPx[idx + 2] * 114) / 1000;
+              if (lum > maxVal) maxVal = lum;
+            }
+          }
+          dilated[y * lowW + x] = maxVal;
+        }
+      }
+
+      for (let i = 0; i < lowW * lowH; i++) {
+        const val = dilated[i];
+        lowPx[i * 4] = val;
+        lowPx[i * 4 + 1] = val;
+        lowPx[i * 4 + 2] = val;
+      }
+      lowCtx.putImageData(lowData, 0, 0);
+
+      const blurCanvas = document.createElement('canvas');
+      blurCanvas.width = lowW;
+      blurCanvas.height = lowH;
+      const blurCtx = blurCanvas.getContext('2d');
+      blurCtx.filter = 'blur(6px)';
+      blurCtx.drawImage(lowCanvas, 0, 0);
+
+      const bgCanvas = document.createElement('canvas');
+      bgCanvas.width = w;
+      bgCanvas.height = h;
+      const bgCtx = bgCanvas.getContext('2d');
+      bgCtx.imageSmoothingEnabled = true;
+      bgCtx.drawImage(blurCanvas, 0, 0, w, h);
+      const bgData = bgCtx.getImageData(0, 0, w, h).data;
+
+      const whiteRatio = opts.whiteRatio;
+      const darkness = opts.darkness;
+      const grayscale = opts.grayscale;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const lum = (r * 299 + g * 587 + b * 114) / 1000;
+        const bg = Math.max(bgData[i], 20);
+
+        let norm = lum / bg;
+        if (norm >= whiteRatio) {
+          norm = 1.0;
+        } else {
+          norm = norm / whiteRatio;
+          norm = Math.pow(norm, darkness);
+        }
+
+        let outVal = Math.min(255, Math.max(0, Math.round(norm * 255)));
+
+        if (grayscale) {
+          data[i] = outVal;
+          data[i + 1] = outVal;
+          data[i + 2] = outVal;
+        } else {
+          const factor = outVal / (lum || 1);
+          data[i] = Math.min(255, r * factor);
+          data[i + 1] = Math.min(255, g * factor);
+          data[i + 2] = Math.min(255, b * factor);
+        }
+      }
+
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // --- Interactive 4-Corner Keystone Correction ---
+    const cropModal = document.getElementById('cropModal');
+    const cropCanvas = document.getElementById('cropCanvas');
+    const applyCropBtn = document.getElementById('applyCropBtn');
+    const resetCropBtn = document.getElementById('resetCropBtn');
+    const rotateCropBtn = document.getElementById('rotateCropBtn');
+    const cancelCropBtn = document.getElementById('cancelCropBtn');
+
+    let currentKeystoneItem = null;
+    let corners = []; // [TL, TR, BR, BL]
+    let activeCornerIndex = -1;
+
+    function openKeystoneModal(item) {
+      currentKeystoneItem = item;
+      const src = item.sourceCanvas;
+      cropCanvas.width = src.width;
+      cropCanvas.height = src.height;
+
+      if (!item.corners) {
+        resetCornersToDefault();
+      } else {
+        corners = item.corners.map(pt => ({ ...pt }));
+      }
+
+      drawKeystoneOverlay();
+      cropModal.style.display = 'flex';
+    }
+
+    function resetCornersToDefault() {
+      const w = cropCanvas.width;
+      const h = cropCanvas.height;
+      const padX = w * 0.08;
+      const padY = h * 0.08;
+      corners = [
+        { x: padX, y: padY },               // Top-Left
+        { x: w - padX, y: padY },           // Top-Right
+        { x: w - padX, y: h - padY },       // Bottom-Right
+        { x: padX, y: h - padY }            // Bottom-Left
+      ];
+    }
+
+    function drawKeystoneOverlay() {
+      const ctx = cropCanvas.getContext('2d');
+      const w = cropCanvas.width;
+      const h = cropCanvas.height;
+
+      // Draw background image
+      ctx.drawImage(currentKeystoneItem.sourceCanvas, 0, 0);
+
+      // Darken outside the quad
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, w, h);
+      ctx.moveTo(corners[0].x, corners[0].y);
+      ctx.lineTo(corners[1].x, corners[1].y);
+      ctx.lineTo(corners[2].x, corners[2].y);
+      ctx.lineTo(corners[3].x, corners[3].y);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fill('evenodd');
+      ctx.restore();
+
+      // Draw polygon outline
+      ctx.strokeStyle = '#0071e3';
+      const lineWidth = Math.max(3, Math.round(w / 350));
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      ctx.moveTo(corners[0].x, corners[0].y);
+      for (let i = 1; i < 4; i++) {
+        ctx.lineTo(corners[i].x, corners[i].y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      // Draw corner grab handles
+      const handleRadius = Math.max(12, Math.round(w / 70));
+      corners.forEach((pt, i) => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, handleRadius, 0, Math.PI * 2);
+        ctx.fillStyle = (i === activeCornerIndex) ? '#34c759' : '#0071e3';
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+      });
+    }
+
+    function getCanvasCoords(e) {
+      const rect = cropCanvas.getBoundingClientRect();
+      const scaleX = cropCanvas.width / rect.width;
+      const scaleY = cropCanvas.height / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+
+    cropCanvas.onmousedown = (e) => {
+      const pos = getCanvasCoords(e);
+      const hitRadius = Math.max(35, Math.round(cropCanvas.width / 25));
+      
+      let closestIdx = -1;
+      let closestDist = Infinity;
+      corners.forEach((pt, i) => {
+        const d = Math.hypot(pt.x - pos.x, pt.y - pos.y);
+        if (d < hitRadius && d < closestDist) {
+          closestDist = d;
+          closestIdx = i;
+        }
+      });
+
+      if (closestIdx !== -1) {
+        activeCornerIndex = closestIdx;
+        drawKeystoneOverlay();
+      }
+    };
+
+    window.onmousemove = (e) => {
+      if (activeCornerIndex === -1) return;
+      const pos = getCanvasCoords(e);
+      corners[activeCornerIndex].x = Math.max(0, Math.min(cropCanvas.width, pos.x));
+      corners[activeCornerIndex].y = Math.max(0, Math.min(cropCanvas.height, pos.y));
+      drawKeystoneOverlay();
+    };
+
+    window.onmouseup = () => {
+      if (activeCornerIndex !== -1) {
+        activeCornerIndex = -1;
+        drawKeystoneOverlay();
+      }
+    };
+
+    resetCropBtn.onclick = () => {
+      resetCornersToDefault();
+      drawKeystoneOverlay();
+    };
+
+    rotateCropBtn.onclick = () => {
+      const src = currentKeystoneItem.sourceCanvas;
+      const rot = document.createElement('canvas');
+      rot.width = src.height;
+      rot.height = src.width;
+      const rctx = rot.getContext('2d');
+      rctx.translate(rot.width / 2, rot.height / 2);
+      rctx.rotate(90 * Math.PI / 180);
+      rctx.drawImage(src, -src.width / 2, -src.height / 2);
+
+      currentKeystoneItem.sourceCanvas = rot;
+      currentKeystoneItem.corners = null;
+      openKeystoneModal(currentKeystoneItem);
+    };
+
+    applyCropBtn.onclick = () => {
+      currentKeystoneItem.corners = corners.map(pt => ({ ...pt }));
+      currentKeystoneItem.workingCanvas = unwarpPerspective(currentKeystoneItem.sourceCanvas, corners);
+      cropModal.style.display = 'none';
+      reprocessAll();
+    };
+
+    cancelCropBtn.onclick = () => {
+      cropModal.style.display = 'none';
+    };
+
+    // --- High-Performance Inverse Homography Projective Transform ---
+    function unwarpPerspective(srcCanvas, srcPts) {
+      // Calculate destination rectangular bounds (standard width & height of the quadrilateral)
+      const topW = Math.hypot(srcPts[1].x - srcPts[0].x, srcPts[1].y - srcPts[0].y);
+      const botW = Math.hypot(srcPts[2].x - srcPts[3].x, srcPts[2].y - srcPts[3].y);
+      const leftH = Math.hypot(srcPts[3].x - srcPts[0].x, srcPts[3].y - srcPts[0].y);
+      const rightH = Math.hypot(srcPts[2].x - srcPts[1].x, srcPts[2].y - srcPts[1].y);
+
+      const targetW = Math.round(Math.max(topW, botW));
+      const targetH = Math.round(Math.max(leftH, rightH));
+
+      const dstPts = [
+        { x: 0, y: 0 },
+        { x: targetW, y: 0 },
+        { x: targetW, y: targetH },
+        { x: 0, y: targetH }
+      ];
+
+      // Compute 3x3 homography matrix mapping Destination (target page) -> Source (angled photo)
+      const H = getPerspectiveTransform(dstPts, srcPts);
+
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = targetW;
+      outCanvas.height = targetH;
+      const outCtx = outCanvas.getContext('2d');
+      const outImgData = outCtx.createImageData(targetW, targetH);
+      const outData = outImgData.data;
+
+      const srcCtx = srcCanvas.getContext('2d');
+      const srcW = srcCanvas.width;
+      const srcH = srcCanvas.height;
+      const srcData = srcCtx.getImageData(0, 0, srcW, srcH).data;
+
+      // Inverse mapping with bilinear interpolation
+      let outIdx = 0;
+      for (let y = 0; y < targetH; y++) {
+        for (let x = 0; x < targetW; x++) {
+          const wInv = 1.0 / (H[6] * x + H[7] * y + H[8]);
+          const srcX = (H[0] * x + H[1] * y + H[2]) * wInv;
+          const srcY = (H[3] * x + H[4] * y + H[5]) * wInv;
+
+          if (srcX >= 0 && srcX < srcW - 1 && srcY >= 0 && srcY < srcH - 1) {
+            const x0 = srcX | 0;
+            const y0 = srcY | 0;
+            const x1 = x0 + 1;
+            const y1 = y0 + 1;
+            const dx = srcX - x0;
+            const dy = srcY - y0;
+
+            const i00 = (y0 * srcW + x0) * 4;
+            const i10 = (y0 * srcW + x1) * 4;
+            const i01 = (y1 * srcW + x0) * 4;
+            const i11 = (y1 * srcW + x1) * 4;
+
+            const w00 = (1 - dx) * (1 - dy);
+            const w10 = dx * (1 - dy);
+            const w01 = (1 - dx) * dy;
+            const w11 = dx * dy;
+
+            outData[outIdx]     = srcData[i00] * w00 + srcData[i10] * w10 + srcData[i01] * w01 + srcData[i11] * w11;
+            outData[outIdx + 1] = srcData[i00+1] * w00 + srcData[i10+1] * w10 + srcData[i01+1] * w01 + srcData[i11+1] * w11;
+            outData[outIdx + 2] = srcData[i00+2] * w00 + srcData[i10+2] * w10 + srcData[i01+2] * w01 + srcData[i11+2] * w11;
+            outData[outIdx + 3] = 255;
+          } else {
+            outData[outIdx + 3] = 0;
+          }
+          outIdx += 4;
+        }
+      }
+
+      outCtx.putImageData(outImgData, 0, 0);
+      return outCanvas;
+    }
+
+    // Direct Linear Transformation (DLT) solver for 8 equations
+    function getPerspectiveTransform(src, dst) {
+      const a = [];
+      for (let i = 0; i < 4; i++) {
+        const sx = src[i].x, sy = src[i].y;
+        const dx = dst[i].x, dy = dst[i].y;
+        a.push([sx, sy, 1, 0, 0, 0, -dx * sx, -dx * sy, dx]);
+        a.push([0, 0, 0, sx, sy, 1, -dy * sx, -dy * sy, dy]);
+      }
+
+      // Gaussian Elimination
+      for (let i = 0; i < 8; i++) {
+        let maxRow = i;
+        for (let k = i + 1; k < 8; k++) {
+          if (Math.abs(a[k][i]) > Math.abs(a[maxRow][i])) maxRow = k;
+        }
+        const temp = a[i];
+        a[i] = a[maxRow];
+        a[maxRow] = temp;
+
+        for (let k = i + 1; k < 8; k++) {
+          const factor = a[k][i] / a[i][i];
+          for (let j = i; j <= 8; j++) {
+            a[k][j] -= factor * a[i][j];
+          }
+        }
+      }
+
+      const h = new Array(9);
+      h[8] = 1.0;
+      for (let i = 7; i >= 0; i--) {
+        let sum = a[i][8];
+        for (let j = i + 1; j < 8; j++) {
+          sum -= a[i][j] * h[j];
+        }
+        h[i] = sum / a[i][i];
+      }
+      return h;
+    }
+
+    // --- Offline ZIP Bundler ---
+    downloadAllBtn.onclick = async () => {
+      if (loadedItems.length === 0) return;
+      downloadAllBtn.innerText = '⏳ Zipping...';
+      downloadAllBtn.disabled = true;
+
+      try {
+        const zipFiles = [];
+        for (const item of loadedItems) {
+          const blob = await new Promise(resolve => item.outCanvas.toBlob(resolve, 'image/png'));
+          const buffer = await blob.arrayBuffer();
+          const cleanName = `cleaned_${item.name.replace(/\.[^/.]+$/, "")}.png`;
+          zipFiles.push({ name: cleanName, data: new Uint8Array(buffer) });
+        }
+
+        const zipBlob = buildZipBlob(zipFiles);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(zipBlob);
+        a.download = `cleaned_worksheets_${Date.now()}.zip`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (err) {
+        alert('Failed to package zip: ' + err.message);
+      } finally {
+        downloadAllBtn.innerText = '📦 Download All (.zip)';
+        downloadAllBtn.disabled = false;
+      }
+    };
+
+    const crcTable = (() => {
+      let c, table = [];
+      for (let n = 0; n < 256; n++) {
+        c = n;
+        for (let k = 0; k < 8; k++) c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+        table[n] = c;
+      }
+      return table;
+    })();
+
+    function crc32(buf) {
+      let crc = 0 ^ (-1);
+      for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ crcTable[(crc ^ buf[i]) & 0xFF];
+      return (crc ^ (-1)) >>> 0;
+    }
+
+    function buildZipBlob(files) {
+      const parts = [];
+      const centralDir = [];
+      let offset = 0;
+
+      for (const file of files) {
+        const nameBytes = new TextEncoder().encode(file.name);
+        const crc = crc32(file.data);
+        const size = file.data.length;
+
+        const localHeader = new Uint8Array(30 + nameBytes.length);
+        const viewLH = new DataView(localHeader.buffer);
+        viewLH.setUint32(0, 0x04034b50, true);
+        viewLH.setUint16(4, 20, true);
+        viewLH.setUint16(6, 0, true);
+        viewLH.setUint16(8, 0, true);
+        viewLH.setUint16(10, 0, true);
+        viewLH.setUint16(12, 0, true);
+        viewLH.setUint32(14, crc, true);
+        viewLH.setUint32(18, size, true);
+        viewLH.setUint32(22, size, true);
+        viewLH.setUint16(26, nameBytes.length, true);
+        viewLH.setUint16(28, 0, true);
+        localHeader.set(nameBytes, 30);
+
+        parts.push(localHeader);
+        parts.push(file.data);
+
+        const cdEntry = new Uint8Array(46 + nameBytes.length);
+        const viewCD = new DataView(cdEntry.buffer);
+        viewCD.setUint32(0, 0x02014b50, true);
+        viewCD.setUint16(4, 20, true);
+        viewCD.setUint16(6, 20, true);
+        viewCD.setUint16(8, 0, true);
+        viewCD.setUint16(10, 0, true);
+        viewCD.setUint16(12, 0, true);
+        viewCD.setUint16(14, 0, true);
+        viewCD.setUint32(16, crc, true);
+        viewCD.setUint32(20, size, true);
+        viewCD.setUint32(24, size, true);
+        viewCD.setUint16(28, nameBytes.length, true);
+        viewCD.setUint16(30, 0, true);
+        viewCD.setUint16(32, 0, true);
+        viewCD.setUint16(34, 0, true);
+        viewCD.setUint16(36, 0, true);
+        viewCD.setUint32(38, 0, true);
+        viewCD.setUint32(42, offset, true);
+        cdEntry.set(nameBytes, 46);
+
+        centralDir.push(cdEntry);
+        offset += localHeader.length + size;
+      }
+
+      const cdOffset = offset;
+      let cdSize = 0;
+      for (const entry of centralDir) {
+        parts.push(entry);
+        cdSize += entry.length;
+      }
+
+      const eocd = new Uint8Array(22);
+      const viewEOCD = new DataView(eocd.buffer);
+      viewEOCD.setUint32(0, 0x06054b50, true);
+      viewEOCD.setUint16(4, 0, true);
+      viewEOCD.setUint16(6, 0, true);
+      viewEOCD.setUint16(8, files.length, true);
+      viewEOCD.setUint16(10, files.length, true);
+      viewEOCD.setUint32(12, cdSize, true);
+      viewEOCD.setUint32(16, cdOffset, true);
+      viewEOCD.setUint16(20, 0, true);
+      parts.push(eocd);
+
+      return new Blob(parts, { type: 'application/zip' });
+    }
+  </script>
+</body>
+</html>
